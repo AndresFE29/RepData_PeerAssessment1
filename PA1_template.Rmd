@@ -1,25 +1,101 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+Activity monitoring data
+=====
+##Andres Salazar
+=====
+Selección de directorio y lectura de datos
 
+```{r}
+library(readr)
+datos <- read_csv("activity.csv")
+library(ggplot2)
+library(dplyr)
+```
 
-## Loading and preprocessing the data
+Se realiza histograma que resume los pasos dados por cada día
+```{r}
+steps<-aggregate(steps~date,datos,sum)
+hist(steps$steps,main="Pasos por día",ylab="Frecuencia",xlab="Rango de pasos")
+```
 
+Se calcula la media y mediana por cada día de la semana
+```{r}
+stepslim<-na.omit(steps)
+pasospordia<-as.data.frame(stepslim)
+pasospordia<-tapply(steps$steps,steps$date,mean)
+pasospordia<-as.data.frame(pasospordia)
+mediana<-tapply(steps$steps,steps$date,median)
+mediana<-as.data.frame(mediana)
+mediana<-na.omit(mediana)
+```
 
+Media de pasos por cada intervalo de 5 minutos
+```{r}
+interval<-na.omit(datos)
+meanporinter<-aggregate(steps~interval,interval,mean)
+ggplot(meanporinter,aes(interval,steps)) +
+  geom_line() +
+  ggtitle("Media de pasos por intervalos de tiempo") +
+  xlab("Intervalo") +
+  ylab("Media") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
 
-## What is mean total number of steps taken per day?
+y se obtiene el intervalo en el cual la media fue la más alta en la muestra
 
+```{r}
+intervalomaximo<-meanporinter[which.max(meanporinter$steps),]
+intervalomaximo
+```
 
+Conteo de los valores perdidos en el data frame
+```{r}
+datos
+na<-complete.cases(datos)
+totalna<-length(datos$steps)-sum(na)
+totalna
+```
+Se completan dichos valores perdidos con la media del intervalo al cual corresponden y se realiza histograma
+```{r}
+rellenar<-transform(datos,steps=ifelse(is.na(datos$steps),
+                                       meanporinter$steps[match(datos$interval,
+                                                                meanporinter$interval)],
+                                       datos$steps))
+datosllenados<-aggregate(steps~date,rellenar,sum)
+hist(datosllenados$steps,main="Pasos por día (2)",ylab="Frecuencia",xlab="Rango de pasos")
+```
 
-## What is the average daily activity pattern?
+se calcula media y mediana de esta muestra sin valores perdidos
+```{r}
+media<-tapply(rellenar$steps,rellenar$date,mean)
+mediana<-tapply(rellenar$steps,rellenar$date,median)
+```
 
+En este paso se crea una variable factor que realiza una diferenciacion entre dias de la semana de Lun-Vier y fines de semana
 
+```{r}
+diadesemana<-function(date) {
+  dia<-weekdays(date)
+  if (dia %in% c('lunes','martes','miércoles','jueves','viernes'))
+    return("Weekday")
+  else if (dia %in% c("sábado","domingo"))
+    return("Weekend")
+  else 
+    stop("Invalid Date Format.")
+  
+}
 
-## Imputing missing values
+rellenar$date<-as.Date(rellenar$date)
+rellenar$day<-sapply(rellenar$date,FUN = diadesemana)
+```
 
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+Se realiza la grafica que muestra el comportamiento de la media de pasos por intervalo de tiempo y por weekday o weekend
+```{r}
+semana<-aggregate(steps~ interval + day,rellenar,mean)
+ggplot(semana,aes(interval,steps))+
+  geom_line()+
+  facet_grid(day~.)+
+  ggtitle("Media de pasos por intervalo y dia de semana")+
+  xlab("intervalo")+
+  ylab("media de pasos")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
